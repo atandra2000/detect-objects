@@ -1,0 +1,16 @@
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.benchmarks
+*.egg-info
+.DS_Store
+*.tmp
+samples/
+runs/
+*.safetensors
+*.onnx
+*.pt
+*.pth
+*.log
+workspace/
