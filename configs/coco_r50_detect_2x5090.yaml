@@ -8,7 +8,6 @@ num_queries: 300        # two-stage proposals → top-300 decoded boxes
 model:
   backbone:
     name: resnet50
-    frozen_stages: -1    # train all stages from scratch
     out_indices: [1, 2, 3]  # C3, C4, C5 → 1/8, 1/16, 1/32
     channels_last: true
   fpn:
@@ -20,8 +19,6 @@ model:
     n_heads: 8
     n_layers: 6
     dropout: 0.0          # detection overfits slowly; no dropout by default
-    activation: relu
-    fa2: true             # prefer flash-attn; fallback to sdpa
   decoder:
     d_model: 256
     n_heads: 8
@@ -30,9 +27,7 @@ model:
     num_queries: 300
     n_feature_levels: 3
     n_sampling_points: 4  # per feature level per query
-    activation: relu
     iterative_refinement: true
-    look_forward_twice: true
   matcher:
     class_cost: 1.0
     bbox_cost: 5.0
@@ -46,11 +41,8 @@ model:
 
 data:
   dataset: coco2017
-  train_ann: /workspace/data/coco/annotations/instances_train2017.json
-  train_img_dir: /workspace/data/coco/train2017
-  val_ann: /workspace/data/coco/annotations/instances_val2017.json
-  val_img_dir: /workspace/data/coco/val2017
   shard_dir: /workspace/data/coco/shards
+  val_ann: /workspace/data/coco/annotations/instances_val2017.json
   train_short_side: [480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800]
   train_max_size: 1333
   val_short_side: 900
@@ -59,7 +51,6 @@ data:
   pin_memory: true
   persistent_workers: true
   prefetch_factor: 4
-  mosaic_prob: 0.0        # start without mosaic; enable 0.5 if mAP stalls
 
 train:
   epochs: 50
@@ -70,12 +61,8 @@ train:
   backbone_lr: 2.0e-5
   weight_decay: 1.0e-4
   warmup_epochs: 1
-  schedule: cosine        # linear warmup → cosine, then drop at epoch 40
-  drop_epoch: 40
-  drop_factor: 0.1
   grad_clip: 1.0
   ema_decay: 0.9999
-  grad_ckpt: true         # gradient checkpointing on backbone
   compile:
     enabled: true
     mode: max-autotune
@@ -87,7 +74,3 @@ paths:
   runs_dir: /workspace/runs/detect-objects
   ckpt_every_epochs: 5
   keep_last: 6
-
-export:
-  final_name: detect_coco_final.safetensors
-  onnx_name: detect_coco_head.onnx

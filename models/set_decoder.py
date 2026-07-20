@@ -49,34 +49,6 @@ class MLP(nn.Module):
         return x
 
 
-class EncoderLayer(nn.Module):
-    """Pre-norm transformer encoder layer with self-attention + FFN."""
-
-    def __init__(self, d_model: int = 256, n_heads: int = 8, dropout: float = 0.0):
-        super().__init__()
-        self.d_head = d_model // n_heads
-        self.self_attn = nn.MultiheadAttention(d_model, n_heads, dropout=dropout, batch_first=True)
-        self.norm1 = nn.LayerNorm(d_model, elementwise_affine=True)
-        self.norm2 = nn.LayerNorm(d_model, elementwise_affine=True)
-        self.ffn = nn.Sequential(
-            nn.Linear(d_model, d_model * 4),
-            nn.ReLU(inplace=True),
-            nn.Dropout(dropout),
-            nn.Linear(d_model * 4, d_model),
-            nn.Dropout(dropout),
-        )
-
-    def forward(self, src: torch.Tensor, pos: torch.Tensor | None = None) -> torch.Tensor:
-        # Prefer SDPA/flash backend on Blackwell; MHA is the portable API.
-        q = (src + pos) if pos is not None else src
-        k = q
-        v = src
-        attn_out, _ = self.self_attn(q, k, v, need_weights=False)
-        src = self.norm1(src + attn_out)
-        ffn_out = self.ffn(src)
-        return self.norm2(src + ffn_out)
-
-
 class DecoderLayer(nn.Module):
     """Pre-norm decoder layer: self-attn + deformable cross-attn + FFN."""
 
@@ -151,15 +123,11 @@ class SetDecoder(nn.Module):
         self.n_queries = dec_cfg["num_queries"]
         self.num_classes = cfg["num_classes"]
         self.iterative_refinement = dec_cfg.get("iterative_refinement", True)
-        self.look_forward_twice = dec_cfg.get("look_forward_twice", True)
 
         # level embeddings added to positional encodings
         self.level_embed = nn.Parameter(torch.zeros(self.n_levels, self.d_model))
 
         # encoder
-        enc_layer = EncoderLayer(
-            self.d_model, enc_cfg["n_heads"], enc_cfg.get("dropout", 0.0)
-        )
         self.encoder = nn.TransformerEncoder(
             nn.TransformerEncoderLayer(
                 d_model=self.d_model,

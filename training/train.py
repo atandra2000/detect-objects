@@ -22,7 +22,7 @@ from torch.utils.data import DataLoader, DistributedSampler
 
 from data.coco_dataset import build_train_dataset, build_val_dataset
 from data.detection_transforms import collate_detection
-from models import build_model
+from models import DetectObjectsModel
 from models.losses import build_loss
 from models.matcher import build_matcher
 from utils.checkpoint import CheckpointManager
@@ -30,7 +30,7 @@ from utils.config import load_config
 from utils.logging import is_main_process, log_env_summary, rank, setup_logger, world_size
 from utils.memory import apply_channels_last
 from utils.schedule import build_schedule
-from utils.stability import EMA, FP32Master, clip_and_guard
+from utils.stability import EMA, clip_and_guard
 
 
 def _set_seed(seed: int = 42) -> None:
@@ -103,7 +103,7 @@ def train_worker(rank_id: int, world_size: int, cfg: dict, args) -> None:
     if is_main_process():
         log_env_summary(logger)
 
-    model = build_model(cfg).to(device)
+    model = DetectObjectsModel(cfg).to(device)
     if cfg["train"].get("channels_last", True) and torch.cuda.is_available():
         model = apply_channels_last(model)
 
@@ -118,7 +118,6 @@ def train_worker(rank_id: int, world_size: int, cfg: dict, args) -> None:
     warmup_iters = cfg["train"]["warmup_epochs"] * iters_per_epoch
     scheduler = build_schedule(optimizer, total_iters, warmup_iters)
 
-    master = FP32Master(model, device)
     ema = EMA(model, decay=cfg["train"]["ema_decay"], device=device)
 
     ckpt_dir = Path(cfg["paths"]["runs_dir"])
@@ -162,10 +161,8 @@ def train_worker(rank_id: int, world_size: int, cfg: dict, args) -> None:
             loss_scaled.backward()
 
             if (i + 1) % grad_accum == 0:
-                master.copy_grad_to_master(model.module if isinstance(model, DDP) else model)
-                grad_norm = clip_and_guard(master.master.values(), max_norm=grad_clip)
+                grad_norm = clip_and_guard(model.module.parameters() if isinstance(model, DDP) else model.parameters(), max_norm=grad_clip)
                 optimizer.step()
-                master.copy_master_to_model(model.module if isinstance(model, DDP) else model)
                 optimizer.zero_grad(set_to_none=True)
                 ema.update(model.module if isinstance(model, DDP) else model)
                 scheduler.step()

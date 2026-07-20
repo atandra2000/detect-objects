@@ -35,7 +35,3 @@ class DetectObjectsModel(nn.Module):
         num_boxes = sum(len(t["labels"]) for t in targets)
         num_boxes = torch.as_tensor([num_boxes], dtype=torch.float32, device=images.device)
         return criterion(outputs, targets, indices, num_boxes.item())
-
-
-def build_model(cfg: dict) -> DetectObjectsModel:
-    return DetectObjectsModel(cfg)

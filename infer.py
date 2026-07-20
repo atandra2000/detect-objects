@@ -14,7 +14,8 @@ import torch
 import torchvision.transforms as T
 from PIL import Image, ImageDraw, ImageFont
 
-from models import build_model
+from data.detection_transforms import IMAGENET_MEAN, IMAGENET_STD
+from models import DetectObjectsModel
 from utils.config import load_config
 from utils.stability import EMA
 
@@ -33,12 +34,10 @@ COCO_CLASSES = [
     "toothbrush",
 ]
 
-IMAGENET_MEAN = (0.485, 0.456, 0.406)
-IMAGENET_STD = (0.229, 0.224, 0.225)
 
 
 def _load_model(cfg: dict, ckpt_path: str, device: torch.device):
-    model = build_model(cfg).to(device)
+    model = DetectObjectsModel(cfg).to(device)
     # try to load state directly; supports both raw state_dicts and our safetensors
     from safetensors.torch import load_file
     sd = load_file(ckpt_path, device=str(device))

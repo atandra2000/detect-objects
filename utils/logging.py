@@ -57,10 +57,4 @@ def log_env_summary(logger: logging.Logger) -> None:
             )
     else:
         logger.info("CUDA not available — running on CPU (smoke/dev only).")
-    for mod, label in [("flash_attn", "flash-attn"), ("scipy", "scipy")]:
-        try:
-            __import__(mod)
-            logger.info(f"kernel/lib: {label} — available")
-        except Exception:
-            logger.info(f"kernel/lib: {label} — MISSING (fallback path will be used)")
     logger.info(f"torch={torch.__version__} | world_size={world_size()}")

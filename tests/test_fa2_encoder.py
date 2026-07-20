@@ -20,7 +20,6 @@ def _tiny_cfg():
                 "n_feature_levels": 3,
                 "n_sampling_points": 2,
                 "iterative_refinement": True,
-                "look_forward_twice": True,
             },
         },
     }

@@ -77,35 +77,3 @@ def clip_and_guard(params, max_norm: float = 1.0, nan_guard: bool = True) -> flo
             return 0.0
     grad_norm = torch.nn.utils.clip_grad_norm_(list(params), max_norm=max_norm)
     return float(grad_norm) if torch.isfinite(torch.as_tensor(grad_norm)) else 0.0
-
-
-class FP32Master:
-    """Holds FP32 copies of BF16 model params for the optimizer.
-
-    Usage:
-        master = FP32Master(model)
-        # after backward + clip on bf16 grads:
-        master.copy_grad_to_master(model)
-        optimizer.step()                       # updates master
-        master.copy_master_to_model(model)     # write-back to BF16 weights
-    """
-
-    def __init__(self, model: nn.Module, device):
-        self.device = device
-        self.master = {
-            n: p.detach().to(device=device, dtype=torch.float32).clone()
-            for n, p in model.named_parameters() if p.requires_grad
-        }
-
-    def copy_grad_to_master(self, model: nn.Module) -> None:
-        for n, p in model.named_parameters():
-            if p.requires_grad and p.grad is not None:
-                self.master[n].grad = p.grad.to(device=self.device, dtype=torch.float32)
-
-    def copy_master_to_model(self, model: nn.Module) -> None:
-        for n, p in model.named_parameters():
-            if p.requires_grad and n in self.master:
-                p.data.copy_(self.master[n].to(p.dtype))
-
-    def named_parameters(self):
-        return self.master.items()

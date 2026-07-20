@@ -77,7 +77,7 @@ Vision/detect-objects/
 ├── configs/coco_r50_detect_2x5090.yaml   # single source of truth for shapes/recipe
 ├── data/
 │   ├── build_coco.py                      # COCO 2017 → shards
-│   ├── coco_dataset.py                    # webdataset / annotation loaders
+│   ├── coco_dataset.py                    # tar-shard COCO loader
 │   └── detection_transforms.py          # box-aware aug + collate
 ├── models/
 │   ├── backbone_resnet.py               # ★ from-scratch R50 + FPN (channels_last)
@@ -87,9 +87,8 @@ Vision/detect-objects/
 │   ├── losses.py                        # ★ focal + L1 + GIoU
 │   └── __init__.py                      # DetectObjectsModel factory
 ├── training/
-│   ├── train.py                         # DDP main loop (BF16+FP32 master, EMA, grad-clip, atomic ckpt)
-│   ├── eval_coco.py                     # pycocotools mAP
-│   └── profiler.py                      # nvidia-smi util ≥ 95% probe
+│   ├── train.py                         # DDP main loop (BF16, EMA, grad-clip, atomic ckpt)
+│   └── eval_coco.py                     # pycocotools mAP
 ├── infer.py                             # ★ product CLI
 ├── demo_gradio.py                       # ★ browser demo with confidence slider
 ├── export/
@@ -114,7 +113,7 @@ per level). Class + box heads predict 80 COCO classes + 1 no-object.
 No anchors, no NMS.
 
 **Training pair generator.** Full COCO 2017 (118 K train, 5 K val, 80 classes)
-loaded via webdataset shards. Images are resized (short side 480–800), randomly
+loaded via tar shards. Images are resized (short side 480–800), randomly
 cropped preserving GT boxes, mirrored, and normalized.
 
 **Matching + loss.** `scipy.optimize.linear_sum_assignment` matches 300
@@ -152,7 +151,7 @@ sigmoid focal classification + 5·L1 box + 2·GIoU on the matched set.
 ## 5. Precision, kernels, memory-format (the stability contract)
 
 - **BF16 autocast** on model forward; **FP32 master weights**
-  (`utils.stability.FP32Master`); **FP32 LayerNorm/GroupNorm/BN** (stable
+  **FP32 LayerNorm/GroupNorm/BN** (stable
   under BF16). **No `GradScaler`** (BF16, not FP16).
 - **FA2 / SDPA flash backend:** encoder self-attention uses
   `torch.nn.MultiheadAttention`, which dispatches to the fastest SDPA
@@ -173,7 +172,7 @@ sigmoid focal classification + 5·L1 box + 2·GIoU on the matched set.
 |---------|-------------|
 | FA2/flash backend unavailable | SDPA automatically falls back to math/mem-eff; check `torch.backends.cuda.flash_sdp_enabled()` |
 | mAP low at 50 ep (from-scratch R50) | expected ~42 without IN-1K pretrain; extend schedule (no time cap) or raise augmentation |
-| OOM at batch 4/GPU, 800×1333 | enable `grad_ckpt`, raise `grad_accum` to 4/8, or fall back to 640×800 |
+| OOM at batch 4/GPU, 800×1333 | raise `grad_accum` to 4/8, or fall back to 640×800 |
 | Deformable sampling outside image | `grid_sample` padding is "zeros"; verify reference-point clamp in `deformable_attention.py` |
 | Hungarian matcher slow | it runs on CPU (scipy) for ≤300×~10 matrices — should be <5% of step time |
 | `torch.compile` recompiles on deformable block | set `train.compile.enabled: false` and compile only backbone+encoder if needed |
@@ -189,7 +188,7 @@ Spawn via the Agent tool when the trigger matches (root `AGENTS.md §2`):
 | Agent | Trigger for this project |
 |-------|--------------------------|
 | `pytorch-debugger` | NaN loss, OOM, slow throughput, grad issues, ckpt corruption in `training/train.py` or models |
-| `data-pipeline-engineer` | COCO shard build, webdataset loader, box-aware augmentation bugs |
+| `data-pipeline-engineer` | COCO shard build, tar-shard loader, box-aware augmentation bugs |
 | `ml-benchmarks` | imgs/sec, memory profiling, ≥95% util probe, mAP tracking |
 | `project-finder` | "which file owns the deformable attention?", "where is the matcher?" |
 | `research-engineer-dev` | (only if extending the platform itself — not this project) |

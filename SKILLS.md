@@ -43,11 +43,10 @@ python3 data/build_coco.py --out /workspace/data/coco
 CKPT_DIR=/workspace/runs/detect-objects bash scripts/launch_2x5090.sh
 ```
 
-`launch_2x5090.sh` runs `torchrun --nproc-per-node=2` + a background
-`training/profiler` polling GPU-0/1 util every 5 s → `util.log`. Watch:
+`launch_2x5090.sh` runs `torchrun --nproc-per-node=2`. Watch:
 
 - `loss_total`, `loss_cls`, `loss_bbox`, `loss_giou` decreasing
-- `imgs/sec` and GPU util (target ≥95%)
+- `imgs/sec` and GPU util (target ≥95% via `nvidia-smi`)
 - **Epoch 20 early signal:** COCO mAP should be ≥ 30. If not, triage aug/lr/loss weights.
 - If util < 85% → check `compile.enabled`; consider raising `batch_size_per_gpu` or enabling CUDA graphs.
 
@@ -101,11 +100,11 @@ python3 demo_gradio.py --ckpt detect_coco_final.safetensors
 | Symptom | First-principles move |
 |---------|------------------------|
 | **NaN loss** | `clip_and_guard` already zeros grads. Drop to FP32 master-only for one step to localise. Inspect deformable offset gradients for overflow. |
-| **OOM @ 32 GB** | enable `grad_ckpt` on backbone; raise `grad_accum` to 4/8; fall back to 640×800. |
+| **OOM @ 32 GB** | raise `grad_accum` to 4/8; fall back to 640×800. |
 | **util < 85%** | confirm `channels_last` applied *before* first forward; confirm SDPA flash path; raise `num_workers`; disable compile on deformable block if recompiling. |
 | **slow throughput** | largest batch that fits; persistent workers; `pin_memory`; compile only backbone+encoder if deformable block causes recompiles. |
 | **ckpt corruption** | atomic write is `.tmp → os.replace`; if a `.tmp` lingers, the prior write was killed mid-flight — delete it and resume from `detect_latest`. |
-| **low mAP from-scratch R50** | expected ~42 at 50 ep without IN-1K pretrain. Extend schedule (no time cap), add mosaic, or raise augmentation. |
+| **low mAP from-scratch R50** | expected ~42 at 50 ep without IN-1K pretrain. Extend schedule (no time cap) or raise augmentation. |
 
 **Rule:** trace to math / memory-layout / architecture. Never paper over with a
 `try/except` or a `.clamp()` you can't justify.

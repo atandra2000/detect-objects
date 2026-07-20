@@ -6,7 +6,7 @@ from pathlib import Path
 
 import torch
 
-from models import build_model
+from models import DetectObjectsModel
 from utils.checkpoint import CheckpointManager
 from utils.config import load_config
 from utils.stability import EMA
@@ -21,7 +21,7 @@ def main() -> None:
 
     cfg = load_config(args.config)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = build_model(cfg).to(device)
+    model = DetectObjectsModel(cfg).to(device)
     ema = EMA(model, decay=cfg["train"]["ema_decay"], device=device)
 
     ckpt_mgr = CheckpointManager(args.ckpt_dir)

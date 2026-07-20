@@ -7,11 +7,6 @@ cd "$(dirname "$0")/.."
 export CKPT_DIR="${CKPT_DIR:-/workspace/runs/detect-objects}"
 export PYTHONPATH="${PYTHONPATH:-}:."
 
-# Background GPU util probe
-python3 training/profiler.py --out "${CKPT_DIR}/util.log" &
-PROFILER_PID=$!
-trap 'kill $PROFILER_PID 2>/dev/null || true' EXIT
-
 torchrun \
     --nnodes=1 \
     --nproc-per-node=2 \

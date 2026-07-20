@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 from data.coco_dataset import build_val_dataset
 from data.detection_transforms import collate_detection
-from models import build_model
+from models import DetectObjectsModel
 from utils.checkpoint import CheckpointManager
 from utils.config import load_config
 from utils.logging import setup_logger
@@ -48,7 +48,7 @@ def _box_cxcywh_to_xyxy(boxes: torch.Tensor, h: int, w: int) -> list[list[float]
 
 def evaluate(cfg: dict, ckpt_path: str | None = None, device: str = "cuda") -> dict:
     logger = setup_logger("detect-objects.eval")
-    model = build_model(cfg).to(device)
+    model = DetectObjectsModel(cfg).to(device)
     if cfg["train"].get("channels_last", True) and torch.cuda.is_available():
         model = apply_channels_last(model)
 
@@ -95,9 +95,6 @@ def evaluate(cfg: dict, ckpt_path: str | None = None, device: str = "cuda") -> d
                         }
                     )
                 img_ids.append(int(targets[b]["image_id"]))
-
-    if ema:
-        ema.restore(model, {})
 
     ann_file = cfg["data"]["val_ann"]
     coco_gt = COCO(ann_file)

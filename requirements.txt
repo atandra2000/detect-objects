@@ -16,4 +16,3 @@ onnx>=1.16.0
 # onnxruntime-gpu is only available on Linux/Windows CUDA machines.
 # Install it on the RunPod/TensorRT target, not locally.
 # onnxruntime-gpu>=1.18.0
-webdataset>=0.2.0

@@ -42,7 +42,7 @@ class Bottleneck(nn.Module):
 class ResNetBackbone(nn.Module):
     """ResNet-50 trunk; returns multi-scale feature maps C3..C5."""
 
-    def __init__(self, block=Bottleneck, layers=(3, 4, 6, 3), frozen_stages: int = -1):
+    def __init__(self, block=Bottleneck, layers=(3, 4, 6, 3)):
         super().__init__()
         self.inplanes = 64
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
@@ -54,9 +54,6 @@ class ResNetBackbone(nn.Module):
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
-
-        self.frozen_stages = frozen_stages
-        self._freeze_stages()
 
     def _make_layer(self, block, planes: int, blocks: int, stride: int = 1) -> nn.Sequential:
         downsample = None
@@ -70,16 +67,6 @@ class ResNetBackbone(nn.Module):
         for _ in range(1, blocks):
             layers.append(block(self.inplanes, planes))
         return nn.Sequential(*layers)
-
-    def _freeze_stages(self) -> None:
-        if self.frozen_stages >= 0:
-            for m in [self.conv1, self.bn1]:
-                for p in m.parameters():
-                    p.requires_grad = False
-        for i in range(1, self.frozen_stages + 1):
-            layer = getattr(self, f"layer{i}")
-            for p in layer.parameters():
-                p.requires_grad = False
 
     def forward(self, x: torch.Tensor) -> list[torch.Tensor]:
         x = self.relu(self.bn1(self.conv1(x)))
@@ -130,11 +117,10 @@ class ResNet50FPN(nn.Module):
     def __init__(
         self,
         out_channels: int = 256,
-        frozen_stages: int = -1,
         return_layers: tuple[int, ...] = (1, 2, 3),
     ):
         super().__init__()
-        self.backbone = ResNetBackbone(Bottleneck, (3, 4, 6, 3), frozen_stages=frozen_stages)
+        self.backbone = ResNetBackbone(Bottleneck, (3, 4, 6, 3))
         self.return_layers = return_layers
         in_channels = [512, 1024, 2048]
         self.fpn = FPN(in_channels, out_channels)
@@ -150,6 +136,5 @@ def build_resnet50_fpn(cfg: dict) -> ResNet50FPN:
     fpn_cfg = cfg.get("model", {}).get("fpn", {})
     return ResNet50FPN(
         out_channels=fpn_cfg.get("out_channels", 256),
-        frozen_stages=backbone_cfg.get("frozen_stages", -1),
         return_layers=tuple(backbone_cfg.get("out_indices", [1, 2, 3])),
     )
