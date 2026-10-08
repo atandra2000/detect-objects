@@ -14,3 +14,6 @@ runs/
 *.pth
 *.log
 workspace/
+
+# codegraph index (binary, local only)
+.codegraph/
