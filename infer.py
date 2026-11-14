@@ -11,7 +11,10 @@ import json
 from pathlib import Path
 
 import torch
-import torchvision.transforms as T
+try:
+    import torchvision.transforms as T
+except ImportError:
+    T = None
 from PIL import Image, ImageDraw, ImageFont
 
 from data.detection_transforms import IMAGENET_MEAN, IMAGENET_STD

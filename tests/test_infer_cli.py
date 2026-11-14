@@ -5,6 +5,9 @@ import json
 import tempfile
 from pathlib import Path
 
+import pytest
+pytest.importorskip("torchvision")
+
 import torch
 from PIL import Image
 
